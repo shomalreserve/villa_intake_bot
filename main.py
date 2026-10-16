@@ -13,7 +13,7 @@ from typing import List
 from dotenv import load_dotenv
 
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, ChatMemberUpdatedFilter, IS_NOT_MEMBER, IS_MEMBER
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -27,6 +27,7 @@ from aiogram.types import (
     InlineKeyboardButton,
     InputMediaPhoto,
     Location,
+    ChatMemberUpdated,
 )
 
 load_dotenv()
@@ -616,6 +617,49 @@ async def handle_admin_action(callback: CallbackQuery, bot: Bot):
         except Exception as e:
             logger.info(f"ارسال پیام به مالک ناموفق بود: {e}")
 
+@router.chat_member(ChatMemberUpdatedFilter(member_status_changed=IS_NOT_MEMBER >> IS_MEMBER))
+async def on_new_chat_member(event: ChatMemberUpdated, bot: Bot):
+    if ADMIN_GROUP_ID and event.chat.id != ADMIN_GROUP_ID:
+        return
+    user = event.new_chat_member.user
+    if user.is_bot:
+        return
+
+    bot_info = await bot.get_me()
+    deep_link = f"https://t.me/{bot_info.username}?start=register_villa"
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🏡 ثبت اقامتگاه در ربات", url=deep_link)]
+        ]
+    )
+
+    group_text = (
+        f"سلام {user.full_name} عزیز! 🌸
+"
+        f"به مرکز رزرواسیون خوش آمدید.
+"
+        f"لطفاً چند دقیقه وقت بگذارید و مشخصات اقامتگاه خود را ثبت نمایید."
+    )
+
+    try:
+        await bot.send_message(chat_id=event.chat.id, text=group_text, reply_markup=kb)
+    except Exception as e:
+        logger.error(f"Error sending group welcome: {e}")
+
+    pv_text = (
+        f"سلام {user.full_name} جان! 🌺
+
+"
+        f"به تیم میزبانان «تعطیلات رویایی شمال» خوش آمدید.
+"
+        f"لطفاً با زدن دکمه زیر یا ارسال /start، مشخصات ویلا، قیمت و عکس‌ها را ثبت کنید تا در سامانه ما منتشر شود."
+    )
+    try:
+        await bot.send_message(chat_id=user.id, text=pv_text, reply_markup=kb)
+    except Exception as e:
+        logger.info(f"Could not send PV to user {user.id} (user has not started bot): {e}")
+
+
 async def main():
     if not BOT_TOKEN:
         print("خطا: BOT_TOKEN در فایل .env تعریف نشده است!", file=sys.stderr)
@@ -627,7 +671,7 @@ async def main():
     dp.include_router(router)
 
     logger.info("ربات با موفقیت راه‌اندازی شد و در حال دریافت پیام‌هاست...")
-    await dp.start_polling(bot)
+    await dp.start_polling(bot, allowed_updates=["message", "callback_query", "chat_member"])
 
 if __name__ == "__main__":
     import asyncio
