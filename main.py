@@ -514,9 +514,14 @@ async def process_confirm(message: Message, state: FSMContext, bot: Bot):
 
     if ADMIN_GROUP_ID:
         try:
-            media_group = [InputMediaPhoto(media=photo_id) for photo_id in photos[:10]]
+            media_group = [
+                InputMediaPhoto(
+                    media=photo_id,
+                    caption=(f"تصاویر ارسالی ویلا #{villa_id}" if i == 0 else None),
+                )
+                for i, photo_id in enumerate(photos[:10])
+            ]
             if media_group:
-                media_group[0].caption = f"تصاویر ارسالی ویلا #{villa_id}"
                 await bot.send_media_group(chat_id=ADMIN_GROUP_ID, media=media_group)
 
             # ارسال پین لوکیشن مستقیماً روی نقشه تلگرام برای ادمین‌ها
@@ -634,10 +639,8 @@ async def on_new_chat_member(event: ChatMemberUpdated, bot: Bot):
     )
 
     group_text = (
-        f"سلام {user.full_name} عزیز! 🌸
-"
-        f"به مرکز رزرواسیون خوش آمدید.
-"
+        f"سلام {user.full_name} عزیز! 🌸\n"
+        f"به مرکز رزرواسیون خوش آمدید.\n"
         f"لطفاً چند دقیقه وقت بگذارید و مشخصات اقامتگاه خود را ثبت نمایید."
     )
 
@@ -647,11 +650,8 @@ async def on_new_chat_member(event: ChatMemberUpdated, bot: Bot):
         logger.error(f"Error sending group welcome: {e}")
 
     pv_text = (
-        f"سلام {user.full_name} جان! 🌺
-
-"
-        f"به تیم میزبانان «تعطیلات رویایی شمال» خوش آمدید.
-"
+        f"سلام {user.full_name} جان! 🌺\n\n"
+        f"به تیم میزبانان «تعطیلات رویایی شمال» خوش آمدید.\n"
         f"لطفاً با زدن دکمه زیر یا ارسال /start، مشخصات ویلا، قیمت و عکس‌ها را ثبت کنید تا در سامانه ما منتشر شود."
     )
     try:
