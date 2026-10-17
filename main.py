@@ -4,6 +4,7 @@
 """
 import os
 import sys
+from aiohttp import web
 import json
 import logging
 import sqlite3
@@ -660,6 +661,46 @@ async def on_new_chat_member(event: ChatMemberUpdated, bot: Bot):
         logger.info(f"Could not send PV to user {user.id} (user has not started bot): {e}")
 
 
+async def handle_health(request):
+    """اندپوینت سلامت برای Render تا پورت باز تشخیص داده شود."""
+    return web.Response(text="OK - bot is running")
+
+
+async def handle_root(request):
+    return web.Response(
+        text="Villa Intake Bot is up and running.",
+        content_type="text/plain",
+    )
+
+
+def _get_port() -> int:
+    try:
+        return int(os.getenv("PORT", "8080"))
+    except (TypeError, ValueError):
+        return 8080
+
+
+async def start_web_server() -> web.AppRunner:
+    """اجرای یک وب‌سرور کوچک aiohttp روی پورت PORT (پیش‌فرض 8080).
+
+    Render باید یک پورت باز ببیند وگرنه با خطای
+    "Port scan timeout reached, no open ports detected"
+    سرویس را متوقف می‌کند. این سرور در کنار Polling ربات اجرا می‌شود.
+    """
+    app = web.Application()
+    app.router.add_get("/", handle_root)
+    app.router.add_get("/health", handle_health)
+    app.router.add_get("/healthz", handle_health)
+
+    port = _get_port()
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host="0.0.0.0", port=port)
+    await site.start()
+    logger.info(f"وب‌سرور aiohttp روی پورت {port} راه‌اندازی شد.")
+    return runner
+
+
 async def main():
     if not BOT_TOKEN:
         print("خطا: BOT_TOKEN در فایل .env تعریف نشده است!", file=sys.stderr)
@@ -670,8 +711,14 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
 
+    # وب‌سرور کوچک برای نگه داشتن پورت باز روی Render (در کنار Polling)
+    runner = await start_web_server()
+
     logger.info("ربات با موفقیت راه‌اندازی شد و در حال دریافت پیام‌هاست...")
-    await dp.start_polling(bot, allowed_updates=["message", "callback_query", "chat_member"])
+    try:
+        await dp.start_polling(bot, allowed_updates=["message", "callback_query", "chat_member"])
+    finally:
+        await runner.cleanup()
 
 if __name__ == "__main__":
     import asyncio
